@@ -1,0 +1,8 @@
+[discord]
+token = "" # Your Discord bot token here
+guild_id = "" # Your Discord server ID here
+
+[printer]
+scheme = "" # http or https
+host = "" # Your printer host here
+api_key = "" # Your printer API key here
