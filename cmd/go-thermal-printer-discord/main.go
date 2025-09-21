@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/base64"
 	"fmt"
 	"log"
 	"os"
@@ -9,16 +8,13 @@ import (
 	"syscall"
 
 	"github.com/bwmarrin/discordgo"
-	httptransport "github.com/go-openapi/runtime/client"
-	"github.com/go-openapi/strfmt"
-	"github.com/jonasclaes/go-thermal-printer-discord/internal/swagger/client"
-	"github.com/jonasclaes/go-thermal-printer-discord/internal/swagger/client/printer"
-	"github.com/jonasclaes/go-thermal-printer-discord/internal/swagger/models"
+	"github.com/jonasclaes/go-thermal-printer-discord/internal/service"
 	"github.com/spf13/viper"
 )
 
 var (
-	commands = []*discordgo.ApplicationCommand{
+	printerService *service.PrinterService
+	commands       = []*discordgo.ApplicationCommand{
 		{
 			Name:        "todo",
 			Description: "Print a todo item to the thermal printer",
@@ -47,24 +43,13 @@ var (
 				title = option.StringValue()
 			}
 
-			var data = ""
-
-			data = base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s\n", title)))
-
-			transport := httptransport.New(viper.GetString("printer.host"), "", []string{viper.GetString("printer.scheme")})
-			apiKeyAuth := httptransport.APIKeyAuth("x-api-key", "header", viper.GetString("printer.api_key"))
-			apiClient := client.New(transport, strfmt.Default)
-			_, err := apiClient.Printer.PostAPIV1PrinterPrint(&printer.PostAPIV1PrinterPrintParams{
-				Request: &models.PrinterPrintDto{
-					Data: &data,
-				},
-			}, apiKeyAuth)
+			err := printerService.PrintTodo(title)
 			if err != nil {
-				log.Printf("error sending print job: %v", err)
+				log.Printf("error printing todo item: %v", err)
 				session.InteractionRespond(interaction.Interaction, &discordgo.InteractionResponse{
 					Type: discordgo.InteractionResponseChannelMessageWithSource,
 					Data: &discordgo.InteractionResponseData{
-						Content: fmt.Sprintf(":cross_mark: Failed to send '%s' to the printer!", title),
+						Content: fmt.Sprintf(":cross_mark: There was an error sending '%s' to the printer.", title),
 					},
 				})
 				return
@@ -88,6 +73,12 @@ func main() {
 	err := viper.ReadInConfig()
 	if err != nil {
 		log.Fatalf("Error reading config file, %s", err)
+	}
+
+	printerService, err = service.NewPrinterService()
+	if err != nil {
+		log.Fatalf("error creating printer service: %v", err)
+		return
 	}
 
 	discord, err := discordgo.New(fmt.Sprintf("Bot %s", viper.GetString("discord.token")))
